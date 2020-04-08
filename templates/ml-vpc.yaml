@@ -37,57 +37,46 @@ Parameters:
     Description: Whether there are the cluster will be deployed to multiple Availability Zones.
     Type: String
     AllowedValues:
-      - 'true'
-      - 'false'
-    Default: 'true'
+      - True
+      - False
+    Default: True
   AZ:
     Description: The Availability Zones for subnets. Accept either 1 zone or 3 different zones. In the order of Subnet 1, Subnet 2 and Subnet 3 (if applicable).
     Type: 'List<AWS::EC2::AvailabilityZone::Name>'
+    Default: us-east-1a,us-east-1b,us-east-1c
   VpcCidr:
     Description: CIDR Block for the Virtual Private Cloud (VPC).
     Type: String
-    AllowedPattern: >-
-      ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
-    Default: 10.0.0.0/16
-    ConstraintDescription: CIDR block must be in format x.x.x.x/16-28
+    Default: 10.240.0.0/16
   PrivateSubnet1Cidr:
     Description: CIDR Block for the private subnet 1.
     Type: String
-    AllowedPattern: >-
-      ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
-    Default: 10.0.0.0/23
-    ConstraintDescription: CIDR block must be in format x.x.x.x/16-28
+    Default: 10.240.0.0/23
   PrivateSubnet2Cidr:
     Description: CIDR Block for the private subnet 2. Only applicable to multi-zone cluster.
-      Only applicable to multi-zone cluster.
     Type: String
-    AllowedPattern: >-
-      ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
-    Default: 10.0.32.0/23
-    ConstraintDescription: CIDR block must be in format x.x.x.x/16-28
+    Default: 10.240.32.0/23
   PrivateSubnet3Cidr:
     Description: CIDR Block for the private subnet 3. Only applicable to multi-zone cluster.
-      Only applicable to multi-zone cluster.
     Type: String
-    AllowedPattern: >-
-      ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
-    Default: 10.0.64.0/23
-    ConstraintDescription: CIDR block must be in format x.x.x.x/16-28
+    Default: 10.240.64.0/23
   PublicSubnet1Cidr:
     Description: CIDR Block for the public subnet 1.
     Type: String
-    AllowedPattern: >-
-      ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
-    Default: 10.0.96.0/23
-    ConstraintDescription: CIDR block must be in format x.x.x.x/16-28
+    Default: 10.240.96.0/23
   PublicSubnet2Cidr:
     Description: CIDR Block for the public subnet 2. Only applicable to multi-zone cluster.
       Only applicable to multi-zone cluster.
     Type: String
-    AllowedPattern: >-
-      ^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/(1[6-9]|2[0-8]))$
-    Default: 10.0.128.0/23
-    ConstraintDescription: CIDR block must be in format x.x.x.x/16-28
+    Default: 10.240.128.0/23
+  VpcName:
+    Description: VPC name tag
+    Type: String
+    Default: MarkLogic-TestVPC
+  CostTag:
+    Description: Tag for costing advice
+    Type: String
+    Default: MarkLogicClusterTest
 Conditions:
   DeployMultiZone: !Equals [!Ref MultiZone, 'true']
 Resources:
@@ -96,6 +85,11 @@ Resources:
     Properties:
       CidrBlock: !Ref VpcCidr
       EnableDnsHostnames: 'true'
+      Tags:
+        - Key: Name
+          Value:  !Ref VpcName
+        - Key: Cost
+          Value:  !Ref CostTag
   PublicSubnet1:
     Type: AWS::EC2::Subnet
     DependsOn:
@@ -104,6 +98,9 @@ Resources:
       VpcId: !Ref MarkLogicVPC
       CidrBlock: !Ref PublicSubnet1Cidr
       AvailabilityZone: !Select [0, !Ref AZ]
+      Tags:
+        - Key: Name
+          Value: !Join [ '-', [!Ref 'VpcName',  "PubSub1"]]
   PublicSubnet2:
     Type: AWS::EC2::Subnet
     Condition: DeployMultiZone
@@ -113,10 +110,18 @@ Resources:
       VpcId: !Ref MarkLogicVPC
       CidrBlock: !Ref PublicSubnet2Cidr
       AvailabilityZone: !Select [1, !Ref AZ]
+      Tags:
+        - Key: Name
+          Value: !Join [ '-', [!Ref 'VpcName',  "PubSub2"]]
   NatEip:
     Type: "AWS::EC2::EIP"
     Properties:
       Domain: vpc
+      Tags:
+        - Key: Cost
+          Value:  !Ref CostTag
+        - Key: Name
+          Value: !Join [ '-', [!Ref 'VpcName',  "EIP"]]
   NatGateway:
     Type: "AWS::EC2::NatGateway"
     DependsOn:
@@ -125,8 +130,18 @@ Resources:
     Properties:
       AllocationId: !GetAtt NatEip.AllocationId
       SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: !Join [ '-', [!Ref 'VpcName',  "NatGW"]]
+        - Key: Cost
+          Value:  !Ref CostTag  
   VpcGateway:
     Type: AWS::EC2::InternetGateway
+    Tags:
+      - Key: Name
+        Value: !Join [ '-', [!Ref 'VpcName',  "IGW"]]
+      - Key: Cost
+        Value:  !Ref CostTag
   VpcGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     DependsOn:
@@ -143,6 +158,9 @@ Resources:
       VpcId: !Ref MarkLogicVPC
       CidrBlock: !Ref PrivateSubnet1Cidr
       AvailabilityZone: !Select [0, !Ref AZ]
+      Tags:
+        - Key: Name
+          Value: !Join [ '-', [!Ref 'VpcName',  "PrivSub1"]]
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
     Condition: DeployMultiZone
@@ -152,6 +170,9 @@ Resources:
       VpcId: !Ref MarkLogicVPC
       CidrBlock: !Ref PrivateSubnet2Cidr
       AvailabilityZone: !Select [1, !Ref AZ]
+      Tags:
+        - Key: Name
+          Value: !Join [ '-', [!Ref 'VpcName',  "PrivSub2"]]
   PrivateSubnet3:
     Type: AWS::EC2::Subnet
     Condition: DeployMultiZone
@@ -161,12 +182,18 @@ Resources:
       VpcId: !Ref MarkLogicVPC
       CidrBlock: !Ref PrivateSubnet3Cidr
       AvailabilityZone: !Select [2, !Ref AZ]
+      Tags:
+        - Key: Name
+          Value: !Join [ '-', [!Ref 'VpcName',  "PrivSub3"]]
   PrivateSubnetRouteTable:
     Type: "AWS::EC2::RouteTable"
     DependsOn:
       - MarkLogicVPC
     Properties:
       VpcId: !Ref MarkLogicVPC
+      Tags:
+        - Key: Name
+          Value: !Join [ '-', [!Ref 'VpcName',  "PrivSubRT"]]
   PrivateRtAssoc1:
     Type: "AWS::EC2::SubnetRouteTableAssociation"
     DependsOn:
@@ -208,6 +235,9 @@ Resources:
       - MarkLogicVPC
     Properties:
       VpcId: !Ref MarkLogicVPC
+      Tags:
+        - Key: Name
+          Value: !Join [ '-', [!Ref 'VpcName',  "PubSubRT"]]
   PublicRtAssoc1:
     Type: "AWS::EC2::SubnetRouteTableAssociation"
     DependsOn:
